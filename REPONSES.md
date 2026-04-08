@@ -34,3 +34,9 @@ Captures d'écran à fournir :
 
 5. Contenu du fichier JSON généré (via docker compose exec ... cat /tmp/rapport_energie_*.json)
 ![alt text](/captures_ecran/fichier_json_genere.png)
+
+Questions exercices supplémentaires : 
+
+Exercice 1  :  Quelle est la différence entre sla et execution_timeout ? - Pourquoi un SLA
+miss n’arrête-t-il pas la tâche ?
+- Le SLA est une alerte de retard mais elle ne bloque pas le job alors que execution_timeout bloque. Il n'arrête pas la tâche surment parce que c'est mieux d'avoir des données en retard que pas du tout de données 

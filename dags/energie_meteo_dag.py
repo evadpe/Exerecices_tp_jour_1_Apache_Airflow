@@ -20,7 +20,12 @@ default_args = {
     "email_on_failure": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
+    "sla": timedelta(minutes=90) # SLA de 90 minutes sur le DAG entier
 }
+def sla_miss_callback(dag, task_list, blocking_task_list, slas, blocking_tis):
+    logging.warning(f"SLA - Le pipeline RTE a du retard !")
+    logging.warning(f"Tâches concernées : {task_list}")
+    logging.warning(f"Délai prévu dépassé pour : {slas}")
 
 def verifier_apis():
     logging.info("Vérification des APIs...")
@@ -132,6 +137,7 @@ with DAG(
     schedule="0 6 * * *", 
     start_date=pendulum.datetime(2024, 1, 1, tz="Europe/Paris"),
     catchup=False,
+    sla_miss_callback=sla_miss_callback, #pour lier ma fonction du 1er exo suppl au dag
     tags=["rte", "tp_jour1"]
 ) as dag:
 
@@ -139,6 +145,6 @@ with DAG(
     t2 = PythonOperator(task_id="collecter_meteo_regions", python_callable=collecter_meteo_regions)
     t3 = PythonOperator(task_id="collecter_production_electrique", python_callable=collecter_production_electrique)
     t4 = PythonOperator(task_id="analyser_correlation", python_callable=analyser_correlation)
-    t5 = PythonOperator(task_id="generer_rapport_energie", python_callable=generer_rapport_energie)
+    t5 = PythonOperator(task_id="generer_rapport_energie", python_callable=generer_rapport_energie,sla=timedelta(minutes=45)) #SLA de 45 minutes sur la tâche generer_rapport_energie
 
     t1 >> [t2, t3] >> t4 >> t5
