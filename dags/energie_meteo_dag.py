@@ -39,7 +39,6 @@ def collecter_meteo_regions():
     return resultats
 
 def collecter_production_electrique():
-    # Dataset RTE eCO2mix régional
     url = "https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets/eco2mix-regional-cons-def/records?limit=50"
     resp = requests.get(url)
     return resp.json().get("results", [])
@@ -52,18 +51,15 @@ def analyser_correlation(**context):
     analyse_complete = {}
     
     for region, data_meteo in meteo.items():
-        # Recherche de la région dans les données de prod
         stats_prod = next((item for item in prod if item.get('libelle_region') == region), {})
-        
-        # On convertit les valeurs en float pour éviter le crash (et on gère le None/Vide)
+        # Ici j'ai ajouté ces lignes car je voulais croiser les données
         try:
-            solaire = float(stats_prod.get("solaire", 0) or 0)
+            solaire = float(stats_prod.get("solaire", 0) or 0) # Ici, j'ai changé solaire > 0 parce que l'api renvoie souvent les nb entre guillemets et je pouvais pas comparer du texte avec un chiffre
             eolien = float(stats_prod.get("eolien", 0) or 0)
         except (ValueError, TypeError):
             solaire = 0.0
             eolien = 0.0
         
-        # Maintenant la comparaison fonctionne !
         statut = "OK" if (solaire > 0 or eolien > 0) else "ALERTE"
         
         analyse_complete[region] = {
@@ -75,13 +71,13 @@ def analyser_correlation(**context):
         }
         
     logging.info(f"Analyse terminée pour {len(analyse_complete)} régions")
-    return analyse_complete
+    return analyse_complete # Ici j'ai changé par rapport au tp car si t4 ne renvoie que du texte, t5 ne reçoit aucune donnée et s'arrête
 
 def generer_rapport_energie(**context):
+    # Ici j'ai enlevé la boucle for pass que je jugeais inutile et moins lisible pour les logs 
     ti = context["ti"]
     analyse = ti.xcom_pull(task_ids="analyser_correlation")
     
-    # Si analyser_correlation a échoué ou n'a rien renvoyé
     if not analyse or not isinstance(analyse, dict):
         logging.error("Données d'analyse corrompues ou absentes")
         return None
@@ -125,6 +121,7 @@ def generer_rapport_energie(**context):
     chemin = f"/tmp/rapport_energie_{today}.json"
     with open(chemin, "w", encoding="utf-8") as f:
         json.dump(rapport, f, ensure_ascii=False, indent=2)
+        # Ici j'ai rajouté ensure_ascii=False à cause des accents des régions
         
     logging.info(f"Rapport sauvegardé : {chemin}")
     return chemin
