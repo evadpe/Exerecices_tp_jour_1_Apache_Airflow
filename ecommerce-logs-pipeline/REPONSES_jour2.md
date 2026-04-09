@@ -1,0 +1,22 @@
+Q1 — HDFS vs système de fichiers local Pourquoi ne pas simplement stocker les logs sur le disque
+local du serveur Airflow ou sur un NFS ? Listez 3 avantages concrets de HDFS pour un cas d’usage de
+50 Go/jour de logs, en vous appuyant sur les caractéristiques du système (distribution, réplication,
+localité des données).
+- Si notre serveur Airflow ou notre NFS plante on perd les logs alors qu'avec l'hdfs les logs sont stockés sur (généralement) 3 serveurs différents donc si un plante on peut toujours récupérer les logs
+- 50 Go/jour de logs sur un mois ça fait beaucoup et le serveur airflow risque de saturer alors que sur l'hdfs si on manque de place on rajoute un serveur (scalabilité). 
+- Sur un NFS pour analyser les logs on doit récupérer les 50 Go à travers le réseau jusqu'à notre CPU et ça peut beuguer (bottlenecks). Avec l'HDFS, au lieu de déplacer la donnée vers le code, on déplace le code vers la donnée. HDFS sait où sont rangés les fichiers et il demande au serveude faire le calcul la bas donc on  surcharge pas le réseau et ça va 10 fois plus vite.
+
+Q2 — NameNode, point de défaillance unique (SPOF) Dans l’architecture HDFS, le NameNode est
+un SPOF. Si le NameNode tombe, que se passe-t-il pour les DataNodes et pour les clients ? Quels
+mécanismes Hadoop propose-t-il pour pallier ce problème en production (HDFS NameNode HA) ?
+Quel est le rôle du Journal Node dans cette architecture haute disponibilité ?
+- Si le NameNode tombe, les datanodes gardent les données sur leur disque mais ils ne peuvent pas dire au name node leur état de santé donc ils attendent dan sle vide. Pour airflow et les utilisateurs ils savent que les données existent mais il ne peuvent pas avoir sur quel serveurs elles sont. En prod pour éviter que tout s'arrêten'a jamais qu'un seul namenode. On en a un qui travaille qui répond et qui gère les fichiers et un en arrière plan qui prend le relais en cas de panne.
+- Le journal Node fonctionne un peu comme les commit de git. A chaque modif le namenode l'écrit dans ce journal et le namenode d'arrière plan lit ces modifs pour rester à jour.
+
+
+Q3 — HdfsSensor vs polling actif Comparez le HdfsSensor en mode poke et en mode reschedule . Dans quel cas utiliseriez-vous l’un plutôt que l’autre ? Quel est l’impact sur le nombre de slots de workers Airflow disponibles ? Proposez un scénario concret où le mauvais choix de modebloquerait tout le scheduler
+- En mode poke, le worker Airflow reste bloqué sur la tâche. Il vérifie si le fichier est là, puis il attend puis il revérifie.Ducoup, la tâche occupe un espace en permanence sur le worker. Si le worker peut faire 10 tâches en même temps et qu'on a 10 sensors en mode poke, Airflow ne peut plus rien faire d'autre alors qu'en mode reschedule, le worker vérifie si le fichier est là et s'il n'est pas là, la tâche s'arrête complètement et libère sa place et airflow la reprogramme pour plus tard. Ducoup l'espace est libéré pour d'autres taches pendanr l'attente et la tâche qui attend qu'on la reprogramme ne consomme rien.
+
+Q4 — Réplication HDFS et cohérence des données Dans le hadoop.env , on a HDFS_CONF_dfs_replication=1 (réplication minimale). En production avec un facteur de réplication de 3, expliquez ce qui se passe lors de l’écriture d’un bloc de 128 Mo : combien de copies sont écrites, sur combien de DataNodes, et dans quel ordre ? Que garantit HDFS en termes de cohérence lors d’une lecture concurrente (pendant que l’écriture est en cours) ?
+- Pour un bloc de 128Mo, on a 3 copies (orginal + 2 répliques) et 3 datanode différents. le client demande au namenode quel datanode utiliser et envoie le bloc au datanode indiqué par le namenode qui les récupère et l'envoie au dexième datanode qui fait la même chose avec le troisième. Le troisième répond qui l'a reçu au 2ème datanode qui fait la même chose avec le premier. Si on envoie 3 fois l'information en même temps ça peut saturer. 
+- Un fichier en cours d'écriture n'est pas encore vu comme termin donc si un autre processus essaie de lire le fichier pendant que le premier est encore en train d'écrire le bloc de 128 Mo, le lecteur ne verra pas les données. Il verra le bloc que quand le pipeline d'écriture sera totalement fermé et validé par le namenode.
