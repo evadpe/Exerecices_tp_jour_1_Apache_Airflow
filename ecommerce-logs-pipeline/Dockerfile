@@ -9,6 +9,7 @@ RUN apt-get update \
          gcc \
          g++ \
          libkrb5-dev \
+         docker.io \
   && apt-get autoremove -yqq --purge \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*

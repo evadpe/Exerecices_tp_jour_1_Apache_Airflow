@@ -1,3 +1,26 @@
+Capture écran à fournir : 
+1. docker ps avec conteneurs healthy : 
+![alt text](captures_ecran/docker_ps.png)
+
+2. docker exec namenode hdfs dfsadmin -report montrant 1 DataNode Live
+![alt text](captures_ecran/docker_datanodelive.png)
+
+3. Interface Web HDFS (http:/ localhost:9870) — onglet Browse Directory avec /data/ecommerce/logs/raw/
+- je n'ai rien dans le raw parce que c'est passé en processed ducoup 
+![alt text](captures_ecran/browse_directory.png)
+
+4. Airflow UI — Vue Graph du DAG  logs_ecommerce_dag avec les 8 tâches
+![alt text](captures_ecran/graph_DAG.png)
+
+5. Airflow UI — Exécution complète avec les 2 branches visibles (une verte, une grisée)
+![alt text](captures_ecran/branches_graph.png)
+
+6. Logs de la tâche analyser_logs_hdfs montrant le résumé des status codes et le Top 5 URLs
+![alt text](captures_ecran/logs_analyser_logs_hdfs.png)
+
+7. Interface Web HDFS — fichier déplacé dans /data/ecommerce/logs/processed/ après exécution
+![alt text](captures_ecran/browse_directory.png)
+
 Q1 — HDFS vs système de fichiers local Pourquoi ne pas simplement stocker les logs sur le disque
 local du serveur Airflow ou sur un NFS ? Listez 3 avantages concrets de HDFS pour un cas d’usage de
 50 Go/jour de logs, en vous appuyant sur les caractéristiques du système (distribution, réplication,
