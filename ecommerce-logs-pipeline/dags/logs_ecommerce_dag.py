@@ -8,6 +8,11 @@ import pendulum
 from airflow.decorators import dag, task
 from airflow.operators.python import BranchPythonOperator, PythonOperator
 
+# Plugin custom — HdfsFileSensor (exercice 1 supplémentaire)
+from hdfs_sensor import HdfsFileSensor
+
+NAMENODE_URL = "http://namenode:9870"
+
 log = logging.getLogger(__name__)
 
 SEUIL_ERREUR_PCT = 5.0
@@ -62,14 +67,18 @@ def ecommerce_full_pipeline():
         log.info("Fichier uploadé vers HDFS : %s", chemin_hdfs)
         return chemin_hdfs
 
-    @task()
-    def hdfs_file_sensor(chemin_hdfs, **context):
-        result = subprocess.run(
-            ["docker", "exec", "namenode", "hdfs", "dfs", "-test", "-e", chemin_hdfs]
-        )
-        if result.returncode != 0:
-            raise FileNotFoundError(f"Fichier absent dans HDFS : {chemin_hdfs}")
-        log.info("Fichier confirmé dans HDFS : %s", chemin_hdfs)
+    # --- Exercice 1 supplémentaire : HdfsFileSensor custom ---
+    # Remplace l'ancien @task() qui ne vérifiait qu'une seule fois.
+    # mode="reschedule" : libère le worker entre chaque poke (recommandé en prod).
+    # mode="poke"       : bloque un slot worker pendant toute l'attente.
+    t_sensor = HdfsFileSensor(
+        task_id="attendre_fichier_hdfs",
+        hdfs_path="/data/ecommerce/logs/raw/access_{{ ds }}.log",
+        namenode_url=NAMENODE_URL,
+        poke_interval=30,   # vérifie toutes les 30 secondes
+        timeout=600,        # abandonne après 10 minutes
+        mode="reschedule",  # libère le worker entre chaque poke
+    )
 
     @task()
     def analyser_logs_hdfs(chemin_hdfs, **context):
@@ -173,7 +182,7 @@ def ecommerce_full_pipeline():
         log.info("Fichier archivé dans la zone processed : %s", destination)
     fichier = generer_logs_journaliers()
     chemin = uploader_vers_hdfs(fichier)
-    hdfs_file_sensor(chemin) >> analyser_logs_hdfs(chemin) >> t_branch >> [t_alerte, t_archive_ok] >> archiver_logs_hdfs()
+    chemin >> t_sensor >> analyser_logs_hdfs(chemin) >> t_branch >> [t_alerte, t_archive_ok] >> archiver_logs_hdfs()
 
 
 dag_final = ecommerce_full_pipeline()
